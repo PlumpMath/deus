@@ -12,6 +12,8 @@ public:
   gl::buffers vbo_;
   gl::program program_;
   gl::textures textures_;
+  GLint visibility_ = 0;
+  float visibility_value_ = 0.0f;
 
   client(GLsizei cx, GLsizei cy);
   void resize(GLsizei cx, GLsizei cy);

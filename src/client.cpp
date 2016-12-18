@@ -18,7 +18,9 @@ client::client(GLsizei cx, GLsizei cy) {
   program_ = gl::program(js::file("shader/text.vert"), js::file("shader/text.frag"));
   const auto position = program_.attribute("position");
   const auto texture_coordinates = program_.attribute("texture_coordinates");
-  const auto texture_sampler = program_.uniform("texture_sampler");
+  const auto texture0 = program_.uniform("texture0");
+  const auto texture1 = program_.uniform("texture1");
+  visibility_ = program_.uniform("visibility");
 
   // Create vertices VBO.
   GLfloat vertices[] = {
@@ -55,7 +57,8 @@ client::client(GLsizei cx, GLsizei cy) {
 
   // Tell the sampler2D uniform that it represents the texture bound to GL_TEXTURE0 while the object is drawn.
   glUseProgram(program_);
-  glUniform1i(texture_sampler, 0);
+  glUniform1i(texture0, 0);
+  glUniform1i(texture1, 1);
     glUseProgram(0);
 
   // Initialize textures using the GL_TEXTURE0 texture unit.
@@ -95,6 +98,9 @@ void client::render() {
 
   // Bind texture to GL_TEXTURE0.
   glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, textures_[0]);
+
+  glActiveTexture(GL_TEXTURE1);
   glBindTexture(GL_TEXTURE_2D, textures_[1]);
 
   // Draw elements. 
@@ -118,6 +124,12 @@ bool client::on_button(int button, double x, double y, bool down) {
 
 bool client::on_scroll(double cx, double cy) {
   //js::log() << "scroll: " << cx << ' ' << cy;
+  if (cy > 0.0) {
+    visibility_value_ += 0.05;
+  } else if (cy < 0.0) {
+    visibility_value_ -= 0.05;
+  }
+  glUniform1f(visibility_, visibility_value_);
   return false;
 }
 

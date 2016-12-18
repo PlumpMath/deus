@@ -40,7 +40,11 @@ bin/$(PROGRAM).js: res/module.js $(OBJECTS) $(INFILES) makefile | bin
 	@rm -f bin/$(PROGRAM).wast
 	@rm -f bin/$(PROGRAM).wast.mappedGlobals
 
-build/wasm/%.o: src/%.cpp
+build/wasm/%.o: src/%.cpp src/%.h
+	@echo [CXX] $<
+	@$(CXX) $(CXXFLAGS) $(INCLUDES) -c -o $@ $<
+
+build/wasm/main.o: src/main.cpp src/client.h
 	@echo [CXX] $<
 	@$(CXX) $(CXXFLAGS) $(INCLUDES) -c -o $@ $<
 
