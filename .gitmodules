@@ -1,0 +1,27 @@
+[submodule "third_party/compat"]
+	path = third_party/compat
+	url = //gate/git/third_party/compat
+[submodule "third_party/glew"]
+	path = third_party/glew
+	url = //gate/git/third_party/glew
+[submodule "third_party/glfw"]
+	path = third_party/glfw
+	url = //gate/git/third_party/glfw
+[submodule "third_party/glm"]
+	path = third_party/glm
+	url = //gate/git/third_party/glm
+[submodule "third_party/gsl"]
+	path = third_party/gsl
+	url = //gate/git/third_party/gsl
+[submodule "third_party/jpeg"]
+	path = third_party/jpeg
+	url = //gate/git/third_party/jpeg
+[submodule "third_party/png"]
+	path = third_party/png
+	url = //gate/git/third_party/png
+[submodule "third_party/utf8"]
+	path = third_party/utf8
+	url = //gate/git/third_party/utf8
+[submodule "third_party/zlib"]
+	path = third_party/zlib
+	url = //gate/git/third_party/zlib
