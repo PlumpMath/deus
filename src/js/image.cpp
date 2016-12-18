@@ -204,10 +204,10 @@ image::image(const std::string& name) {
 #ifdef __EMSCRIPTEN__
   const auto data = emscripten_get_preloaded_image_data(name.data(), &cx_, &cy_);
   if (!data) {
-    throw std::runtime_error("Could not load image: " + std::string(name));
+    throw std::runtime_error("Could not load image: " + name);
   }
   format_ = GL_RGBA;
-  data_ = { data, static_cast<std::size_t>(cx) * static_cast<std::size_t>(cy) * 4 };
+  data_ = { data, static_cast<std::size_t>(cx_) * static_cast<std::size_t>(cy_) * 4 };
 #else
   const auto file = js::file(name);
   if (png::check(file)) {
@@ -220,7 +220,7 @@ image::image(const std::string& name) {
     data_ = jpeg.read(file, cx_, cy_, format_);
     return;
   }
-  throw std::runtime_error("Unsupported image type: " + name);
+  throw std::runtime_error("Could not load image: " + name);
 #endif
 }
 
