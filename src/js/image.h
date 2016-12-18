@@ -16,9 +16,6 @@ public:
 
   ~image();
 
-  void open(const std::string& name);
-  void close() noexcept;
-
   GLsizei cx() const noexcept {
     return cx_;
   }

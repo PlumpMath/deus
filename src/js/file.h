@@ -8,15 +8,16 @@ class file {
 public:
   file() noexcept = default;
 
-  file(const std::string& name);
+  file(std::string name);
 
   file(file&& other) noexcept = default;
   file& operator=(file&& other) noexcept = default;
 
   ~file();
 
-  void open(const std::string& name);
-  void close() noexcept;
+  std::string name() const noexcept {
+    return name_;
+  }
 
   const char* data() const noexcept {
     return data_.data();
@@ -31,6 +32,7 @@ public:
   }
 
 private:
+  std::string name_;
   std::string_view data_;
 };
 

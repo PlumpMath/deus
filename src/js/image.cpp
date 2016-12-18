@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <vector>
 #include <png.h>
+#include <turbojpeg.h>
 #endif
 
 namespace js {
@@ -17,8 +18,59 @@ namespace {
 
 #ifndef __EMSCRIPTEN__
 
+class jpeg {
+public:
+  static constexpr std::size_t signature_size = 8;
+
+  jpeg() {
+    handle_ = tjInitDecompress();
+    if (!handle_) {
+      throw std::runtime_error("Could not initialize libjpeg.");
+    }
+  }
+
+  ~jpeg() {
+    tjDestroy(handle_);
+  }
+
+  std::string read(const js::file& file, GLsizei& cx, GLsizei& cy, GLint& format) {
+    const auto data = reinterpret_cast<unsigned char*>(const_cast<char*>(file.data()));
+    const auto size = static_cast<unsigned long>(file.size());
+    int subsampling = 0;
+    if (tjDecompressHeader2(handle_, data, size, &cx, &cy, &subsampling) != 0) {
+      throw std::runtime_error("Could not read image header: " + file.name());
+    }
+    std::string buffer;
+    buffer.resize(cx * cy * 3);
+    if (tjDecompress2(handle_, data, size, reinterpret_cast<unsigned char*>(&buffer[0]), cx, 0, cy, TJPF_RGB, TJFLAG_FASTDCT) != 0) {
+      throw std::runtime_error("Could not read image data: " + file.name());
+    }
+    format = GL_RGB;
+    return buffer;
+  }
+
+  static bool check(const js::file& file) noexcept {
+    int cx = 0;
+    int cy = 0;
+    int subsampling = 0;
+    if (const auto handle = tjInitDecompress()) {
+      const auto data = reinterpret_cast<unsigned char*>(const_cast<char*>(file.data()));
+      const auto size = static_cast<unsigned long>(file.size());
+      const auto success = tjDecompressHeader2(handle, data, size, &cx, &cy, &subsampling) == 0;
+      tjDestroy(handle);
+      return success;
+    }
+    return false;
+  }
+
+private:
+  tjhandle handle_ = nullptr;
+};
+
 class png {
 public:
+  static constexpr png_size_t signature_size = 8;
+
   png() {
     png_ = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, [](png_structp ptr, png_const_charp msg) {
       throw std::runtime_error(msg ? msg : "png error");
@@ -41,14 +93,13 @@ public:
     png_destroy_read_struct(&png_, &info_, nullptr);
   }
 
-  std::string read(const std::string& name, GLsizei& cx, GLsizei& cy, GLint& format) {
+  std::string read(const js::file& file, GLsizei& cx, GLsizei& cy, GLint& format) {
     // Read file and verify signature.
-    const auto file = js::file(name);
     const auto data = reinterpret_cast<png_const_bytep>(file.data());
     const auto size = static_cast<png_size_t>(file.size());
     constexpr png_size_t signature_size = 8;
     if (size < signature_size || png_sig_cmp(data, 0, signature_size)) {
-      throw std::runtime_error("Invalid PNG signature image: " + name);
+      throw std::runtime_error("Invalid PNG signature image: " + file.name());
     }
 
     // Set read callback function.
@@ -57,7 +108,7 @@ public:
       png_const_bytep beg;
       png_const_bytep end;
       png_const_bytep pos;
-    } s = { name, data, data + size, data + signature_size };
+    } s = { file.name(), data, data + size, data + signature_size };
     png_set_read_fn(png_, &s, [](png_structp ptr, png_bytep data, png_size_t size) {
       auto& self = *reinterpret_cast<stream*>(png_get_io_ptr(ptr));
       const auto beg = self.pos;
@@ -108,7 +159,7 @@ public:
       format = GL_RGBA;
       break;
     default:
-      throw std::runtime_error("Unsupported color type in image: " + name);
+      throw std::runtime_error("Unsupported color type in image: " + file.name());
     }
 
     // Disable interlacing.
@@ -133,6 +184,13 @@ public:
     return buffer;
   }
 
+  static bool check(const js::file& file) noexcept {
+    if (file.size() > signature_size) {
+      return png_sig_cmp(reinterpret_cast<png_const_bytep>(file.data()), 0, signature_size) == 0;
+    }
+    return false;
+  }
+
 private:
   png_structp png_ = nullptr;
   png_infop info_ = nullptr;
@@ -143,46 +201,35 @@ private:
 }  // namespace
 
 image::image(const std::string& name) {
-  open(name);
-}
-
-image::~image() {
-  close();
-}
-
-void image::open(const std::string& name) {
-  close();
 #ifdef __EMSCRIPTEN__
-  int cx = 0;
-  int cy = 0;
-  const auto data = emscripten_get_preloaded_image_data(name.data(), &cx, &cy);
+  const auto data = emscripten_get_preloaded_image_data(name.data(), &cx_, &cy_);
   if (!data) {
     throw std::runtime_error("Could not load image: " + std::string(name));
   }
-  if (cx && cy) {
-    cx_ = cx;
-    cy_ = cy;
-    format_ = GL_RGBA;
-    data_ = { data, static_cast<std::size_t>(cx) * static_cast<std::size_t>(cy) * 4 };
-  }
+  format_ = GL_RGBA;
+  data_ = { data, static_cast<std::size_t>(cx) * static_cast<std::size_t>(cy) * 4 };
 #else
-  png png;
-  data_ = png.read(name, cx_, cy_, format_);
+  const auto file = js::file(name);
+  if (png::check(file)) {
+    png png;
+    data_ = png.read(file, cx_, cy_, format_);
+    return;
+  }
+  if (jpeg::check(file)) {
+    jpeg jpeg;
+    data_ = jpeg.read(file, cx_, cy_, format_);
+    return;
+  }
+  throw std::runtime_error("Unsupported image type: " + name);
 #endif
 }
 
-void image::close() noexcept {
+image::~image() {
 #ifdef __EMSCRIPTEN__
   if (data_.data()) {
     free(const_cast<char*>(data_.data()));
   }
-  data_ = {};
-#else
-  data_.clear();
 #endif
-  format_ = 0;
-  cy_ = 0;
-  cx_ = 0;
 }
 
 }  // namespace js
