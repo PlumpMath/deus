@@ -2,6 +2,7 @@
 #include <js/file.h>
 #include <js/image.h>
 #include <js/log.h>
+#include <algorithm>
 #include <vector>
 
 client::client(GLsizei cx, GLsizei cy) {
@@ -9,7 +10,6 @@ client::client(GLsizei cx, GLsizei cy) {
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glClearColor(0.2f, 0.4f, 0.6f, 1.0f);
-  glViewport(0, 0, cx, cy);
 
   // Create scene objects.
   vao_ = gl::arrays(1);
@@ -25,10 +25,10 @@ client::client(GLsizei cx, GLsizei cy) {
   // Create vertices VBO.
   GLfloat vertices[] = {
   // Position   Coordinates
-   -1.0f,  1.0f, 0.0f, 0.0f, // Top-left
-    1.0f,  1.0f, 1.0f, 0.0f, // Top-right
-    1.0f, -1.0f, 1.0f, 1.0f, // Bottom-right
-   -1.0f, -1.0f, 0.0f, 1.0f  // Bottom-left
+   -1.0f,  1.0f, 0.0f, 0.0f, // top-left
+    1.0f,  1.0f, 1.0f, 0.0f, // top-right
+    1.0f, -1.0f, 1.0f, 1.0f, // bottom-right
+   -1.0f, -1.0f, 0.0f, 1.0f  // bottom-left
   };
   glBindBuffer(GL_ARRAY_BUFFER, vbo_[0]);
   glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
@@ -55,10 +55,10 @@ client::client(GLsizei cx, GLsizei cy) {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-  // Tell the sampler2D uniform that it represents the texture bound to GL_TEXTURE0 while the object is drawn.
+  // Tell the sampler2D uniforms which texture units they refer to.
   glUseProgram(program_);
-  glUniform1i(texture0, 0);
-  glUniform1i(texture1, 1);
+  glUniform1i(texture0, 0);  // GL_TEXTURE0
+  glUniform1i(texture1, 1);  // GL_TEXTURE1
     glUseProgram(0);
 
   // Initialize textures using the GL_TEXTURE0 texture unit.
@@ -86,7 +86,8 @@ client::client(GLsizei cx, GLsizei cy) {
 }
 
 void client::resize(GLsizei cx, GLsizei cy) {
-  glViewport(0, 0, cx, cy);
+  const auto cw = std::min(cx, cy);
+  glViewport((cx - cw) / 2, (cy - cw) / 2, cw, cw);
 }
 
 void client::render() {
@@ -125,9 +126,9 @@ bool client::on_button(int button, double x, double y, bool down) {
 bool client::on_scroll(double cx, double cy) {
   //js::log() << "scroll: " << cx << ' ' << cy;
   if (cy > 0.0) {
-    visibility_value_ += 0.05;
+    visibility_value_ += 0.05f;
   } else if (cy < 0.0) {
-    visibility_value_ -= 0.05;
+    visibility_value_ -= 0.05f;
   }
   glUniform1f(visibility_, visibility_value_);
   return false;

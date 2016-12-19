@@ -7,7 +7,7 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
-#include <html5.h>
+#include <emscripten/html5.h>
 #else
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3.h>
@@ -238,6 +238,7 @@ public:
       get(window)->on_mouse(entered ? true : false);
     });
 #endif
+    client_->resize(static_cast<GLsizei>(cx), static_cast<GLsizei>(cy));
   }
 
   bool render() {
