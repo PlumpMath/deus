@@ -4,8 +4,8 @@ CXXFLAGS	:= -O3 -std=c++1z
 
 EMFLAGS		:= -s BINARYEN=1 -s "BINARYEN_METHOD='native-wasm'" -s "EXPORT_NAME='deus'" -s MODULARIZE=1
 EMFLAGS		+= -s NO_EXIT_RUNTIME=1 -s NO_FILESYSTEM=0 -s NO_DYNAMIC_EXECUTION=1 -s DISABLE_EXCEPTION_CATCHING=0
-EMFLAGS		+= -s ELIMINATE_DUPLICATE_FUNCTIONS=1 -s ASSERTIONS=1 -s USE_SDL=0 -s USE_SDL_IMAGE=0 -s USE_SDL_TTF=0
-EMFLAGS		+= -s USE_GLFW=0 -s USE_WEBGL2=1 -s FULL_ES3=1 -s USE_ZLIB=0 --use-preload-plugins
+EMFLAGS		+= -s USE_SDL=0 -s USE_SDL_IMAGE=0 -s USE_SDL_TTF=0 -s USE_GLFW=0 -s USE_WEBGL2=1 -s FULL_ES3=1 -s USE_ZLIB=0
+EMFLAGS		+= --use-preload-plugins --cache build/wasm/cache --preload-file res/data/@
 
 INCLUDES	:= -Isrc -Ithird_party/compat/include/wasm -Ithird_party/glm/include
 
@@ -30,13 +30,17 @@ build/wasm/index.css: res/html/index.css | build/wasm
 	@echo [CSS] $<
 	@java -jar res/closure-stylesheets.jar -o $@ $<
 
-bin/$(PROGRAM).min.js: bin/$(PROGRAM).js | build/wasm/cache bin
+bin/$(PROGRAM).min.js: res/module.js $(OBJECTS) $(INFILES) makefile | build/wasm/cache bin
+	@echo [SRC] bin/$(PROGRAM).js
+	@$(CXX) $(CXXFLAGS) $(EMFLAGS) -s ASSERTIONS=0 -s ELIMINATE_DUPLICATE_FUNCTIONS=1 --js-library res/module.js $(OBJECTS) -o bin/$(PROGRAM).js
+	@rm -f bin/$(PROGRAM).wast
+	@rm -f bin/$(PROGRAM).wast.mappedGlobals
 	@echo [SRC] $@
-	@java -jar res/closure.jar --jscomp_off '*' --js $< --js_output_file $@
+	@java -jar res/closure.jar --jscomp_off '*' --js bin/$(PROGRAM).js --js_output_file $@
 
-bin/$(PROGRAM).js: res/module.js $(OBJECTS) $(INFILES) makefile | bin
+bin/$(PROGRAM).js: res/module.js $(OBJECTS) $(INFILES) makefile | build/wasm/cache bin
 	@echo [SRC] $@
-	@$(CXX) $(CXXFLAGS) $(EMFLAGS) --cache build/wasm/cache --preload-file res/data/@ --js-library res/module.js $(OBJECTS) -o bin/$(PROGRAM).js
+	@$(CXX) $(CXXFLAGS) $(EMFLAGS) -s ASSERTIONS=1 --js-library res/module.js $(OBJECTS) -o bin/$(PROGRAM).js
 	@rm -f bin/$(PROGRAM).wast
 	@rm -f bin/$(PROGRAM).wast.mappedGlobals
 
@@ -72,5 +76,5 @@ bin:
 clean:
 	@rm -f $(OBJECTS) build/wasm/index.css build/wasm/index.js
 
-up: | release
-	@scp bin/deus.min.js bin/deus.data bin/deus.wasm bin/index.html xiphos:html/
+up:
+	@scp bin/deus.js bin/deus.min.js bin/deus.data bin/deus.wasm bin/index.html xiphos:html/

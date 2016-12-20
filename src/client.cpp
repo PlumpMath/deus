@@ -2,33 +2,44 @@
 #include <js/file.h>
 #include <js/image.h>
 #include <js/log.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <algorithm>
 #include <vector>
 
-client::client(GLsizei cx, GLsizei cy) {
+client::client() {
   // Create scene.
   glEnable(GL_BLEND);
+  glEnable(GL_DEPTH_TEST);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glClearColor(0.2f, 0.4f, 0.6f, 1.0f);
+
+  // Determine the maximum possible anisotropy.
+  GLfloat anisotropy = 0.0f;
+  glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &anisotropy);
+  anisotropy = std::min(anisotropy, 16.0f);
 
   // Create scene objects.
   vao_ = gl::arrays(1);
   vbo_ = gl::buffers(2);
-  textures_ = gl::textures(2);
+  textures_ = gl::textures(1);
   program_ = gl::program(js::file("shader/text.vert"), js::file("shader/text.frag"));
+
+  // Get program attribute and uniform locations.
+  glUseProgram(program_);
   const auto position = program_.attribute("position");
-  const auto texture_coordinates = program_.attribute("texture_coordinates");
+  const auto texture0_coordinates = program_.attribute("texture0_coordinates");
   const auto texture0 = program_.uniform("texture0");
-  const auto texture1 = program_.uniform("texture1");
-  visibility_ = program_.uniform("visibility");
+    glUseProgram(0);
 
   // Create vertices VBO.
   GLfloat vertices[] = {
   // Position   Coordinates
-   -1.0f,  1.0f, 0.0f, 0.0f, // top-left
-    1.0f,  1.0f, 1.0f, 0.0f, // top-right
-    1.0f, -1.0f, 1.0f, 1.0f, // bottom-right
-   -1.0f, -1.0f, 0.0f, 1.0f  // bottom-left
+   -0.5f,  0.5f, 0.0f, 0.0f, // top-left
+    0.5f,  0.5f, 1.0f, 0.0f, // top-right
+    0.5f, -0.5f, 1.0f, 1.0f, // bottom-right
+   -0.5f, -0.5f, 0.0f, 1.0f  // bottom-left
   };
   glBindBuffer(GL_ARRAY_BUFFER, vbo_[0]);
   glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
@@ -49,49 +60,60 @@ client::client(GLsizei cx, GLsizei cy) {
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo_[1]);
   glEnableVertexAttribArray(position);
   glVertexAttribPointer(position, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
-  glEnableVertexAttribArray(texture_coordinates);
-  glVertexAttribPointer(texture_coordinates, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+  glEnableVertexAttribArray(texture0_coordinates);
+  glVertexAttribPointer(texture0_coordinates, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
     glBindVertexArray(0);  // Must be called before rebinding the buffers.
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
+  // Set the view matrix.
+  glUseProgram(program_);
+  glm::mat4 view;
+  view = glm::lookAt(
+    glm::vec3(0.0f, -1.2f, 0.6f),
+    glm::vec3(0.0f, -0.1f, 0.0f),
+    glm::vec3(0.0f,  1.0f, 0.0f)
+  );
+  glUniformMatrix4fv(program_.uniform("view"), 1, GL_FALSE, glm::value_ptr(view));
+    glUseProgram(0);
+
   // Tell the sampler2D uniforms which texture units they refer to.
   glUseProgram(program_);
   glUniform1i(texture0, 0);  // GL_TEXTURE0
-  glUniform1i(texture1, 1);  // GL_TEXTURE1
     glUseProgram(0);
 
   // Initialize textures using the GL_TEXTURE0 texture unit.
   glActiveTexture(GL_TEXTURE0);
 
   // Initialize texture 1.
-  const auto image1 = js::image("image1.png");
+  const auto image = js::image("test.png");
   glBindTexture(GL_TEXTURE_2D, textures_[0]);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexImage2D(GL_TEXTURE_2D, 0, image1.format(), image1.cx(), image1.cy(), 0, image1.format(), GL_UNSIGNED_BYTE, image1.data());
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-  // Initialize texture 2.
-  const auto image2 = js::image("image2.jpg");
-  glBindTexture(GL_TEXTURE_2D, textures_[1]);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexImage2D(GL_TEXTURE_2D, 0, image2.format(), image2.cx(), image2.cy(), 0, image2.format(), GL_UNSIGNED_BYTE, image2.data());
+  if (anisotropy >= 1.0f) {
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, anisotropy);
+  }
+  glTexImage2D(GL_TEXTURE_2D, 0, image.format(), image.cx(), image.cy(), 0, image.format(), GL_UNSIGNED_BYTE, image.data());
+  glGenerateMipmap(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void client::resize(GLsizei cx, GLsizei cy) {
-  const auto cw = std::min(cx, cy);
-  glViewport((cx - cw) / 2, (cy - cw) / 2, cw, cw);
+void client::resize(GLsizei cx, GLsizei cy, double pixel_ratio) {
+  glViewport(0, 0, cx, cy);
+  cx_ = static_cast<GLfloat>(cx);
+  cy_ = static_cast<GLfloat>(cy);
+
+  glUseProgram(program_);
+  glm::mat4 projection;
+  projection = glm::perspective(glm::radians(45.0f), cx_ / cy_, 0.1f, 10.0f);
+  glUniformMatrix4fv(program_.uniform("projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    glUseProgram(0);
 }
 
 void client::render() {
-  glClear(GL_COLOR_BUFFER_BIT);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Select proogram and use attribute information stored in the VAO.
   glUseProgram(program_);
@@ -101,8 +123,11 @@ void client::render() {
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, textures_[0]);
 
-  glActiveTexture(GL_TEXTURE1);
-  glBindTexture(GL_TEXTURE_2D, textures_[1]);
+  // Update the model translation matrix.
+  glm::mat4 model;
+  float time = std::chrono::duration_cast<std::chrono::duration<float>>(clock::now() - start_).count();
+  model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+  glUniformMatrix4fv(program_.uniform("model"), 1, GL_FALSE, glm::value_ptr(model));
 
   // Draw elements. 
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
@@ -125,12 +150,6 @@ bool client::on_button(int button, double x, double y, bool down) {
 
 bool client::on_scroll(double cx, double cy) {
   //js::log() << "scroll: " << cx << ' ' << cy;
-  if (cy > 0.0) {
-    visibility_value_ += 0.05f;
-  } else if (cy < 0.0) {
-    visibility_value_ -= 0.05f;
-  }
-  glUniform1f(visibility_, visibility_value_);
   return false;
 }
 

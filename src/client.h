@@ -5,18 +5,14 @@
 #include <gl/program.h>
 #include <gl/textures.h>
 #include <js/input.h>
+#include <chrono>
 
 class client {
 public:
-  gl::arrays vao_;
-  gl::buffers vbo_;
-  gl::program program_;
-  gl::textures textures_;
-  GLint visibility_ = 0;
-  float visibility_value_ = 0.0f;
+  using clock = std::chrono::steady_clock;
 
-  client(GLsizei cx, GLsizei cy);
-  void resize(GLsizei cx, GLsizei cy);
+  client();
+  void resize(GLsizei cx, GLsizei cy, double pixel_ratio);
   void render();
   
   bool on_key(std::string_view s);
@@ -25,4 +21,13 @@ public:
   bool on_scroll(double cx, double cy);
   bool on_mouse(double x, double y);
   bool on_mouse(bool enter);
+
+private:
+  gl::arrays vao_;
+  gl::buffers vbo_;
+  gl::program program_;
+  gl::textures textures_;
+  clock::time_point start_ = clock::now();
+  GLfloat cx_ = 0.0f;
+  GLfloat cy_ = 0.0f;
 };

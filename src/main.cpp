@@ -56,12 +56,17 @@ public:
   }
 
   void create(const char* id = nullptr) {
+    double pixel_ratio = 1.0;
+
 #ifdef __EMSCRIPTEN__
     double cx = 800.0;
     double cy = 600.0;
-    if (emscripten_get_element_css_size(id, &cx, &cy) != EMSCRIPTEN_RESULT_SUCCESS) {
+    if (emscripten_get_element_css_size(nullptr, &cx, &cy) != EMSCRIPTEN_RESULT_SUCCESS) {
       throw std::runtime_error("Could not get canvas size.");
     }
+    pixel_ratio = emscripten_get_device_pixel_ratio();
+    cx *= pixel_ratio;
+    cy *= pixel_ratio;
     emscripten_set_canvas_size(static_cast<int>(cx), static_cast<int>(cy));
     EmscriptenWebGLContextAttributes attributes = {};
     emscripten_webgl_init_context_attributes(&attributes);
@@ -86,7 +91,7 @@ public:
 #else
     auto cx = 1024;
     auto cy = 768;
-    glfwWindowHint(GLFW_SAMPLES, 4);
+    glfwWindowHint(GLFW_SAMPLES, 8);
     glfwWindowHint(GLFW_RED_BITS, 8);
     glfwWindowHint(GLFW_GREEN_BITS, 8);
     glfwWindowHint(GLFW_BLUE_BITS, 8);
@@ -123,7 +128,7 @@ public:
     }
 #endif
 
-    client_ = std::make_unique<client>(static_cast<GLsizei>(cx), static_cast<GLsizei>(cy));
+    client_ = std::make_unique<client>();
 
 #ifdef __EMSCRIPTEN__
     static auto get = [](void* data) -> client* {
@@ -131,10 +136,11 @@ public:
     };
 
     emscripten_set_resize_callback(nullptr, this, EM_FALSE, [](int type, const EmscriptenUiEvent* e, void* data) {
-      const auto cx = e->windowInnerWidth;
-      const auto cy = e->windowInnerHeight;
-      emscripten_set_canvas_size(cx, cy);
-      get(data)->resize(static_cast<GLsizei>(cx), static_cast<GLsizei>(cy));
+      const auto pixel_ratio = emscripten_get_device_pixel_ratio();
+      const auto cx = e->windowInnerWidth * pixel_ratio;
+      const auto cy = e->windowInnerHeight * pixel_ratio;
+      emscripten_set_canvas_size(static_cast<int>(cx), static_cast<int>(cy));
+      get(data)->resize(static_cast<GLsizei>(cx), static_cast<GLsizei>(cy), pixel_ratio);
       return EM_TRUE;
     });
 
@@ -206,7 +212,7 @@ public:
     };
 
     glfwSetWindowSizeCallback(handle_, [](GLFWwindow* window, int cx, int cy) {
-      get(window)->resize(static_cast<GLsizei>(cx), static_cast<GLsizei>(cy));
+      get(window)->resize(static_cast<GLsizei>(cx), static_cast<GLsizei>(cy), 1.0);
     });
 
     glfwSetCharCallback(handle_, [](GLFWwindow* window, unsigned int cp) {
@@ -238,7 +244,7 @@ public:
       get(window)->on_mouse(entered ? true : false);
     });
 #endif
-    client_->resize(static_cast<GLsizei>(cx), static_cast<GLsizei>(cy));
+    client_->resize(static_cast<GLsizei>(cx), static_cast<GLsizei>(cy), pixel_ratio);
   }
 
   bool render() {

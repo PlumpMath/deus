@@ -3,7 +3,6 @@ function load(js, data, wasm, size) {
   var p = document.getElementById("progress");
 
   function status(message) {
-    console.log(message);
     if (0 < message.length) {
       s.innerHTML = message;
       s.className = "";
@@ -129,5 +128,7 @@ function load(js, data, wasm, size) {
 
   var canvas = document.createElement("canvas");
   canvas.id = "view";
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
   document.body.appendChild(canvas);
 }
